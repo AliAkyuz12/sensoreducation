@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SensorLab Pro v2</title>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Modular CSS -->
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/layout.css">
+    <link rel="stylesheet" href="styles/components.css">
+
+    <!-- External Libraries -->
+    <!-- We removed Chart.js as requested for vanilla canvas, but kept jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body class="mode-expert">
+
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <h1 data-i18n="header.title">Advanced Sensor Simulation Platform</h1>
+            <p class="subtitle" data-i18n="header.subtitle">33 Sensor Types • Alarm System • Filter • Comparison • IMU
+                Fusion • FFT • PDF Report</p>
+        </header>
+
+        <!-- TOP BAR (Controls) -->
+        <div class="topbar">
+            <div class="topbar-title" data-i18n="topbar.title">SensorLab Pro</div>
+            <div class="topbar-controls">
+                <button class="btn btn-primary" onclick="toggleSection('dashboardSection')"><i
+                        class="fas fa-chart-line"></i> <span data-i18n="btn.dashboard">Dashboard</span></button>
+                <button class="btn btn-info" onclick="toggleSection('comparisonSection')"><i
+                        class="fas fa-exchange-alt"></i> <span data-i18n="btn.compare">Compare</span></button>
+                <button class="btn btn-warning" onclick="toggleSection('imuSection')"><i class="fas fa-cube"></i> <span
+                        data-i18n="btn.imu">IMU</span></button>
+                <button class="btn btn-danger" onclick="toggleSection('fftSection')"><i class="fas fa-wave-square"></i>
+                    <span data-i18n="btn.fft">FFT</span></button>
+                <button class="btn btn-success" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> <span
+                        data-i18n="btn.pdf">PDF</span></button>
+
+                <!-- Reproducibility: random seed -->
+                <span class="seed-control" title="Random seed — same seed + same actions = identical data">
+                    Seed <input type="number" id="simSeed" value="12345" min="1"
+                        style="width:80px;background:rgba(0,0,0,0.3);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:3px">
+                    <button class="btn btn-secondary" onclick="setSimSeed(parseInt(document.getElementById('simSeed').value)); initSensors();">↺</button>
+                </span>
+
+                <!-- View Mode Toggle -->
+                <button id="viewModeBtn" class="view-mode-btn" onclick="toggleViewMode()" data-i18n="btn.teaching">📚
+                    Teaching Mode</button>
+
+                <!-- Language Toggle -->
+                <button class="lang-toggle" onclick="toggleLang()" data-i18n="btn.langToggle">🌐 EN/TR</button>
+            </div>
+        </div>
+
+        <!-- LEARNING CHAIN (Pedagogical Flow) -->
+        <div id="learningChainSection" style="display:none;">
+            <h3 data-i18n="section.learningChain">🎓 Guided Learning Chain</h3>
+            <div class="learning-chain-steps">
+                <div class="chain-step active" onclick="setChainStep(0)">
+                    <div class="step-num">1</div>
+                    <div data-i18n="chain.step1">Single Sensor</div>
+                </div>
+                <div class="chain-step" onclick="setChainStep(1)">
+                    <div class="step-num">2</div>
+                    <div data-i18n="chain.step2">Compare Sensors</div>
+                </div>
+                <div class="chain-step" onclick="setChainStep(2)">
+                    <div class="step-num">3</div>
+                    <div data-i18n="chain.step3">IMU Fusion</div>
+                </div>
+                <div class="chain-step" onclick="setChainStep(3)">
+                    <div class="step-num">4</div>
+                    <div data-i18n="chain.step4">FFT Analysis</div>
+                </div>
+            </div>
+            <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px;">
+                <p id="chainTaskText" style="font-size:0.95rem;"></p>
+            </div>
+        </div>
+
+        <!-- DASHBOARD SECTION -->
+        <div id="dashboardSection" style="display:none;">
+            <h3 data-i18n="section.dashboard"><i class="fas fa-desktop"></i> Live Dashboard</h3>
+            <div id="dashboardGrid" class="dashboard-grid">
+                <!-- Populated by app.js -->
+            </div>
+        </div>
+
+        <!-- COMPARISON SECTION -->
+        <div id="comparisonSection" style="display:none;">
+            <h3 data-i18n="section.compare"><i class="fas fa-not-equal"></i> Sensor Comparison</h3>
+            <div class="comparison-grid">
+                <div>
+                    <div class="comparison-selector">
+                        <select id="cmpSensor1" onchange="updateComparison()">
+                            <option value="temp">Temperature</option>
+                            <option value="pressure">Pressure</option>
+                            <option value="light">Light</option>
+                            <!-- More options... -->
+                        </select>
+                    </div>
+                    <div class="dynamic-graph" style="margin-top:10px;">
+                        <canvas id="cmpCanvas1" width="350" height="150"></canvas>
+                        <div id="cmpVal1" style="text-align:center;color:#4fc3f7;font-weight:bold;margin-top:5px;">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="comparison-selector">
+                        <select id="cmpSensor2" onchange="updateComparison()">
+                            <option value="pressure" selected>Pressure</option>
+                            <option value="temp">Temperature</option>
+                            <option value="light">Light</option>
+                            <!-- More options... -->
+                        </select>
+                    </div>
+                    <div class="dynamic-graph" style="margin-top:10px;">
+                        <canvas id="cmpCanvas2" width="350" height="150"></canvas>
+                        <div id="cmpVal2" style="text-align:center;color:#e74c3c;font-weight:bold;margin-top:5px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- IMU FUSION SECTION -->
+        <div id="imuSection" style="display:none;">
+            <h3 data-i18n="section.imu"><i class="fas fa-cube"></i> IMU Sensor Fusion</h3>
+            <p style="font-size:0.85rem;margin-bottom:10px;opacity:0.8;" data-i18n="imu.desc">Accelerometer + Gyroscope
+                → Tilt Angle (Complementary Filter)</p>
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:300px;">
+                    <div class="controls" style="border-radius:8px;">
+                        <div class="slider-row">
+                            <label data-i18n="imu.accLabel">Acceleration (g):</label>
+                            <input type="range" id="imuAcc" min="-2" max="2" step="0.1" value="0.5"
+                                oninput="updateIMU()">
+                            <span id="imuAccVal">0.5</span>
+                        </div>
+                        <div class="slider-row">
+                            <label data-i18n="imu.gyroLabel">Gyro (°/s):</label>
+                            <input type="range" id="imuGyro" min="-200" max="200" step="5" value="10"
+                                oninput="updateIMU()">
+                            <span id="imuGyroVal">10</span>
+                        </div>
+                        <div class="slider-row"
+                            style="margin-top:15px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1);">
+                            <label data-i18n="imu.alphaLabel" style="color:#f39c12;">Filter α:</label>
+                            <input type="range" id="imuAlpha" min="0" max="1" step="0.01" value="0.98"
+                                oninput="updateIMU()">
+                            <span id="imuAlphaVal" style="color:#f39c12;">0.98</span>
+                        </div>
+                    </div>
+                    <div class="value-display" style="margin-top:10px; font-size:1.1rem;">
+                        <span data-i18n="imu.fusedAngle">Complementary Filter Angle:</span> <strong id="imuAngle"
+                            style="color:#9b59b6;font-size:1.3rem;">0.00°</strong>
+                    </div>
+                </div>
+                <div style="flex:2; min-width:350px;">
+                    <canvas id="imuCanvas" width="700" height="200" style="width:100%; border-radius:8px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- FFT SECTION -->
+        <div id="fftSection" style="display:none;">
+            <h3 data-i18n="section.fft"><i class="fas fa-wave-square"></i> FFT Frequency Analysis</h3>
+            <p style="font-size:0.85rem;margin-bottom:10px;opacity:0.8;" data-i18n="fft.desc">Select signal source and
+                analyze frequency content</p>
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:250px;">
+                    <div class="controls" style="border-radius:8px;">
+                        <div class="slider-row">
+                            <label data-i18n="fft.signalLabel">Signal:</label>
+                            <select id="fftSource" onchange="updateFFT()"
+                                style="background:rgba(0,0,0,0.3);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:4px;border-radius:4px;flex:1;">
+                                <option value="sine">Pure Sine</option>
+                                <option value="square">Square Wave</option>
+                                <option value="sawtooth">Sawtooth</option>
+                            </select>
+                        </div>
+                        <div class="slider-row">
+                            <label data-i18n="fft.freqLabel">Freq:</label>
+                            <input type="range" id="fftFreq" min="1" max="50" step="1" value="5" oninput="updateFFT()">
+                            <span id="fftFreqVal" style="min-width:30px;">5</span>
+                        </div>
+                        <div class="slider-row">
+                            <label data-i18n="fft.noiseLabel" style="color:#e74c3c;">Noise:</label>
+                            <input type="range" id="fftNoise" min="0" max="100" step="5" value="10"
+                                oninput="updateFFT()">
+                            <span id="fftNoiseVal" style="color:#e74c3c;min-width:30px;">10</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="flex:2; min-width:400px; display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <div class="graph-title" data-i18n="fft.timeDomain" style="margin-bottom:5px;">Time Domain</div>
+                        <canvas id="fftTimeDomain" width="300" height="150"
+                            style="width:100%;border-radius:6px;"></canvas>
+                    </div>
+                    <div style="flex:1;">
+                        <div class="graph-title" data-i18n="fft.freqDomain" style="margin-bottom:5px;">Frequency Domain
+                        </div>
+                        <canvas id="fftFreqDomain" width="300" height="150"
+                            style="width:100%;border-radius:6px;"></canvas>
+                        <div id="fftPeak" style="font-size:0.75rem;opacity:0.8;margin-top:4px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN SENSOR GRID -->
+        <div id="mainSensorsContainer">
+            <!-- Dynamically populated by render.js -->
+        </div>
+
+    </div> <!-- /container -->
+
+    <!-- ==========================================
+         GLOBAL MODALS 
+         ========================================== -->
+
+    <!-- Calibration Unified Workflow Modal -->
+    <div id="calibrationModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <span class="close" onclick="closeCalibModal()">&times;</span>
+            <h3 id="calibModalTitle"><i class="fas fa-cogs"></i> Calibration Workflow</h3>
+            <div id="calibWorkflowContainer">
+                <!-- dynamic content from app.js rendering -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==========================================
+         SCRIPTS
+         ========================================== -->
+    <script src="scripts/i18n.js"></script>
+    <script src="scripts/data.js"></script>
+    <script src="scripts/charts.js"></script>
+    <script src="scripts/questions.js"></script>
+    <script src="scripts/render.js"></script>
+    <script src="scripts/sensors.js"></script>
+    <script src="scripts/app.js"></script>
+    <script src="scripts/verification.js"></script>
+
+</body>
+
+</html>
